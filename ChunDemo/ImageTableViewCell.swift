@@ -17,15 +17,15 @@ class ImageTableViewCell: UITableViewCell {
         
         self.testImageView = UIImageView(frame: CGRectZero)
         self.testImageView.contentMode = .ScaleAspectFit
-        self.testImageView.setTranslatesAutoresizingMaskIntoConstraints(false)
+        self.testImageView.translatesAutoresizingMaskIntoConstraints = false
         self.contentView.addSubview(self.testImageView)
         
         let views = ["testImageView": self.testImageView]
-        self.contentView.addConstraints(NSLayoutConstraint.constraintsWithVisualFormat("V:|-0-[testImageView]-0-|", options: NSLayoutFormatOptions(0), metrics: nil, views: views))
-        self.contentView.addConstraints(NSLayoutConstraint.constraintsWithVisualFormat("|-0-[testImageView]-0-|", options: NSLayoutFormatOptions(0), metrics: nil, views: views))
+        self.contentView.addConstraints(NSLayoutConstraint.constraintsWithVisualFormat("V:|-0-[testImageView]-0-|", options: NSLayoutFormatOptions(rawValue: 0), metrics: nil, views: views))
+        self.contentView.addConstraints(NSLayoutConstraint.constraintsWithVisualFormat("|-0-[testImageView]-0-|", options: NSLayoutFormatOptions(rawValue: 0), metrics: nil, views: views))
     }
     
-    required init(coder aDecoder: NSCoder) {
+    required init?(coder aDecoder: NSCoder) {
         super.init(coder: aDecoder)
     }
 }
