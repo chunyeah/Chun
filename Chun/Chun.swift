@@ -22,30 +22,30 @@ private var key = 0
 public extension UIImageView {
     
     /**
-    Set the imageView image with image url.
-    We will fetch and cache the image asynchronous.
-    
-    :param: url the local or remote url for the image
-    */
+     Set the imageView image with image url.
+     We will fetch and cache the image asynchronous.
+     
+     - parameter url: the local or remote url for the image
+     */
     public func setImageWithURL(url: NSURL) {
         self.setImageWithURL(url, placeholderImage: nil)
     }
     
     /**
-    Set the imageView image with the image url
-    Before the url image load, will display placeholderImage
-    
-    :param: url the local or remote url for the image
-    :param: placeholderImage the image to be set initially
-    */
+     Set the imageView image with the image url
+     Before the url image load, will display placeholderImage
+     
+     - parameter url: the local or remote url for the image
+     - parameter placeholderImage: the image to be set initially
+     */
     public func setImageWithURL(url: NSURL, placeholderImage: UIImage?) {
-
+        
         if let imageURLForChun = self.imageURLForChun {
             Chun.sharedInstance.cancelFetchWithURL(imageURLForChun)
         }
-      
+        
         self.imageURLForChun = url
-
+        
         if let placeholderImage = placeholderImage {
             self.image = placeholderImage
         }
@@ -54,7 +54,7 @@ public extension UIImageView {
             
             switch result {
             case let .Error(error):
-                println(error)
+                print(error)
             case let .Success(image, fetchedImageURL):
                 if let strongSelf = self {
                     if let imageURLForChun = strongSelf.imageURLForChun {
@@ -68,7 +68,7 @@ public extension UIImageView {
                 }
             }
             
-        })
+            })
     }
     
     private var imageURLForChun: NSURL? {
@@ -76,7 +76,7 @@ public extension UIImageView {
             return objc_getAssociatedObject(self, &key) as? NSURL
         }
         set (url) {
-            objc_setAssociatedObject(self, &key, url, UInt(OBJC_ASSOCIATION_RETAIN_NONATOMIC))
+            objc_setAssociatedObject(self, &key, url, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
         }
     }
 }
@@ -99,10 +99,10 @@ public class Chun {
     
     private let cache = ImageCache()
     private lazy var fetchers = [String: ImageFetcher]()
-        
+    
     /**
-    Cancel and remove all fetch
-    */
+     Cancel and remove all fetch
+     */
     public func destroyAllFetch() {
         for fetcher in self.fetchers.values {
             fetcher.cancelFetch()
@@ -111,11 +111,11 @@ public class Chun {
     }
     
     /**
-    Fetch image with local or remote url
-    
-    :param: url      the image url
-    :param: complete callback when the fetch comlete
-    */
+     Fetch image with local or remote url
+     
+     - parameter url:      the image url
+     - parameter complete: callback when the fetch comlete
+     */
     public func fetchImageWithURL(url: NSURL, complete: (Result) -> Void) {
         let key = cacheKeyForRemoteURL(url)
         
@@ -129,7 +129,8 @@ public class Chun {
                     if exist {
                         fetchURL = diskURL!
                     }
-                    let fetcher = ImageFetcher.fetchImage(fetchURL, completion: { (result: FetcherResult) -> Void in
+                    
+                    let completionClosure = { (result: FetcherResult) -> Void in
                         switch result {
                         case let .Error(error):
                             let result = Result.Error(error: error)
@@ -139,19 +140,30 @@ public class Chun {
                             complete(result)
                             self.cache.storeImage(image, imageData: imageData, key: key)
                         }
-                        self.fetchers[key] = nil
+                        
+                        if self.fetchers[key]?.completions?.count == 0{
+                            self.fetchers[key] = nil
+                        }
+                    }
+                    
+                    let fetcher = ImageFetcher.fetchImage(fetchURL, completion: completionClosure)
+                    
+                    if let fetcherSameKey = self.fetchers[key]{
+                        fetcherSameKey.completions?.append(completionClosure)
+                    }
+                    else{
+                        self.fetchers[key] = fetcher
+                    }
                     })
-                    self.fetchers[key] = fetcher
-                })
             }
         }
     }
     
     /**
-    cancel fetch with image url
-    
-    :param: url the url witch waht to cancel
-    */
+     cancel fetch with image url
+     
+     - parameter url: the url witch waht to cancel
+     */
     public func cancelFetchWithURL(url: NSURL) {
         
         let key = cacheKeyForRemoteURL(url)
@@ -163,15 +175,15 @@ public class Chun {
     }
     
     /**
-    Clear all cached image files in the disk
-    */
+     Clear all cached image files in the disk
+     */
     public func clearDisk() {
         self.cache.clearDisk(){}
     }
     
     /**
-    Clear all cached images in the memory
-    */
+     Clear all cached images in the memory
+     */
     public func clearMemory() {
         self.cache.clearMemory()
     }
@@ -216,7 +228,7 @@ func md5String(string: String) -> String {
 }
 
 func cacheKeyForRemoteURL(url: NSURL) -> String {
-    return url.absoluteString!
+    return url.absoluteString
 }
 
 func == (left: NSURL, right: NSURL) -> Bool {
@@ -229,9 +241,14 @@ func scaledImage(image: UIImage) -> UIImage {
     if image.images != nil && image.images?.count > 0 {
         var scaledImages = [UIImage]()
         for tempImage in image.images! {
-            scaledImages.append(scaledImage(tempImage as! UIImage))
+            scaledImages.append(scaledImage(tempImage))
         }
-        return UIImage.animatedImageWithImages(scaledImages, duration: image.duration)
+        if let image = UIImage.animatedImageWithImages(scaledImages, duration: image.duration){
+            return image
+        }
+        else{
+            return image
+        }
     }
     else {
         return image
@@ -253,20 +270,20 @@ func decodedImageWithImage(image: UIImage) -> UIImage {
     var bitmapInfo = originalBitmapInfo
     switch (alphaInfo) {
     case .None:
-        bitmapInfo &= ~CGBitmapInfo.AlphaInfoMask
-        bitmapInfo |= CGBitmapInfo(CGImageAlphaInfo.NoneSkipFirst.rawValue)
+        bitmapInfo = [.ByteOrder32Little, CGBitmapInfo(rawValue: ~CGBitmapInfo.AlphaInfoMask.rawValue | CGImageAlphaInfo.PremultipliedFirst.rawValue)]
     case .PremultipliedFirst, .PremultipliedLast, .NoneSkipFirst, .NoneSkipLast:
         break
     case .Only, .Last, .First:
         return image
     }
     
-    if let context = CGBitmapContextCreate(nil, CGImageGetWidth(imageRef), CGImageGetHeight(imageRef), CGImageGetBitsPerComponent(imageRef), 0 , colorSpace, bitmapInfo) {
+    if let context = CGBitmapContextCreate(nil, CGImageGetWidth(imageRef), CGImageGetHeight(imageRef), CGImageGetBitsPerComponent(imageRef), 0 , colorSpace, bitmapInfo.rawValue) {
         CGContextDrawImage(context, imageRect, imageRef)
-        let decompressedImageRef = CGBitmapContextCreateImage(context)
-        if let decompressedImage = UIImage(CGImage: decompressedImageRef, scale: image.scale, orientation: image.imageOrientation) {
-            return decompressedImage
-        } else {
+        
+        if let decompressedImageRef = CGBitmapContextCreateImage(context){
+            return UIImage(CGImage: decompressedImageRef, scale: image.scale, orientation: image.imageOrientation)
+        }
+        else{
             return image
         }
     } else {
@@ -286,8 +303,8 @@ func imageWithData(data: NSData) -> UIImage? {
             image = UIImage(data: data)
             let orientation = imageOrientationFromImageData(data)
             if orientation != UIImageOrientation.Up {
-                if let tempImage = image {
-                    image = UIImage(CGImage: tempImage.CGImage, scale: tempImage.scale, orientation: orientation)
+                if let tempImage = image, let tempCGImage = image?.CGImage{
+                    image = UIImage(CGImage: tempCGImage, scale: tempImage.scale, orientation: orientation)
                     
                 }
             }
@@ -344,39 +361,39 @@ func exifOrientationToiOSOrientation(exifOrientation: Int) -> UIImageOrientation
     return orientation
 }
 
-func animatedGIFWithData(data: NSData) -> UIImage {
-    let source = CGImageSourceCreateWithData(data, nil)
-    let count = CGImageSourceGetCount(source)
-    
-    var animatedImage: UIImage!
-    if count <= 1 {
-        animatedImage = UIImage(data: data)
-    } else {
-        var images = [UIImage]()
-        var duration: NSTimeInterval = 0.0
+func animatedGIFWithData(data: NSData) -> UIImage? {
+    if let source = CGImageSourceCreateWithData(data, nil){
+        let count = CGImageSourceGetCount(source)
         
-        for index in 0..<count {
-            let cgImage = CGImageSourceCreateImageAtIndex(source, index, nil)
+        var animatedImage: UIImage!
+        if count <= 1 {
+            animatedImage = UIImage(data: data)
+        } else {
+            var images = [UIImage]()
+            var duration: NSTimeInterval = 0.0
             
-            duration += frameDurationAdIndex(index, source)
-            
-            if let image = UIImage(CGImage: cgImage, scale: UIScreen.mainScreen().scale, orientation: .Up) {
-                images.append(image)
+            for index in 0..<count {
+                if let cgImage = CGImageSourceCreateImageAtIndex(source, index, nil){
+                    duration += frameDurationAdIndex(index, source: source)
+                    
+                    images.append(UIImage(CGImage: cgImage, scale: UIScreen.mainScreen().scale, orientation: .Up))
+                }
             }
+            
+            if duration <= 0.0 {
+                duration = (1.0 / 10.0) * Double(count) as NSTimeInterval
+            }
+            animatedImage = UIImage.animatedImageWithImages(images, duration: duration)
         }
         
-        if duration <= 0.0 {
-            duration = (1.0 / 10.0) * Double(count) as NSTimeInterval
-        }
-        animatedImage = UIImage.animatedImageWithImages(images, duration: duration)
+        return animatedImage
     }
-    
-    return animatedImage
+    return nil
 }
 
 func frameDurationAdIndex(index: Int, source: CGImageSourceRef) -> NSTimeInterval {
     var frameDuration: NSTimeInterval = 0.1
-    let frameProperties = CGImageSourceCopyPropertiesAtIndex(source, index, nil) as NSDictionary
+    let frameProperties = CGImageSourceCopyPropertiesAtIndex(source, index, nil) as! NSDictionary
     if let gifProperties = frameProperties[kCGImagePropertyGIFDictionary as String] as? NSDictionary {
         if let delay = gifProperties[kCGImagePropertyGIFUnclampedDelayTime as String] as? NSTimeInterval {
             frameDuration = delay
@@ -447,12 +464,13 @@ class ImageFetcher {
     }
     
     deinit {
-        self.completion = nil
+        self.completions?.removeAll()
+        self.completions = nil
     }
     
     var cancelled = false
     
-    var completion: CompeltionClosure?
+    var completions: [CompeltionClosure?]?
     
     static func fetchImage(url: NSURL, completion: CompeltionClosure?) -> ImageFetcher {
         
@@ -464,7 +482,10 @@ class ImageFetcher {
             fetcher = RemoteImageFetcher(imageURL: url)
         }
         
-        fetcher.completion = completion
+        if fetcher.completions == nil{
+            fetcher.completions = [CompeltionClosure?]()
+        }
+        fetcher.completions?.append(completion)
         
         fetcher.startFetch()
         
@@ -482,9 +503,12 @@ class ImageFetcher {
     final func failedWithError(error: NSError) {
         dispatch_main_async_safe {
             if !self.cancelled {
-                if let completionClosure = self.completion {
+                if var completionClosures = self.completions {
                     let result = FetcherResult.Error(error: error)
-                    completionClosure(result)
+                    for _ in 0..<completionClosures.count{
+                        completionClosures[0]?(result)
+                        completionClosures.removeAtIndex(0)
+                    }
                 }
             }
         }
@@ -501,9 +525,12 @@ class ImageFetcher {
                     finalImage = decodedImageWithImage(finalImage)
                     dispatch_main_async_safe {
                         if !strongSelf.cancelled {
-                            if let completionClosure = strongSelf.completion {
+                            if var completionClosures = strongSelf.completions {
                                 let result = FetcherResult.Success(image: finalImage, imageData: imageData)
-                                completionClosure(result)
+                                for _ in 0..<completionClosures.count{
+                                    completionClosures[0]?(result)
+                                    completionClosures.removeAtIndex(0)
+                                }
                             }
                         }
                     }
@@ -614,11 +641,11 @@ class ImageCache  {
     static let defaultCacheMaxAge: NSTimeInterval = 60 * 60 * 24 * 7; // 1 week
     
     static let basePath: String = {
-        let cachesPath = NSSearchPathForDirectoriesInDomains(NSSearchPathDirectory.CachesDirectory, NSSearchPathDomainMask.UserDomainMask, true)[0] as! String
+        let cachesPath = NSSearchPathForDirectoriesInDomains(NSSearchPathDirectory.CachesDirectory, NSSearchPathDomainMask.UserDomainMask, true)[0]
         let hanekePathComponent = fullNamespace
-        let basePath = cachesPath.stringByAppendingPathComponent(hanekePathComponent)
+        let basePath = (cachesPath as NSString).stringByAppendingPathComponent(hanekePathComponent)
         return basePath
-        }()
+    }()
     
     var ioQueue: dispatch_queue_t!
     
@@ -636,7 +663,10 @@ class ImageCache  {
             self.fileManager = NSFileManager()
             
             if !self.fileManager.fileExistsAtPath(ImageCache.basePath) {
-                self.fileManager.createDirectoryAtPath(ImageCache.basePath, withIntermediateDirectories: true, attributes: nil, error: nil)
+                do {
+                    try self.fileManager.createDirectoryAtPath(ImageCache.basePath, withIntermediateDirectories: true, attributes: nil)
+                } catch _ {
+                }
             }
         }
         
@@ -672,7 +702,10 @@ class ImageCache  {
             if let strongSelf = self {
                 if exist {
                     dispatch_async(strongSelf.ioQueue) {
-                        strongSelf.fileManager.removeItemAtURL(diskURL!, error: nil)
+                        do{
+                            try strongSelf.fileManager.removeItemAtURL(diskURL!)
+                        }catch _{
+                        }
                     }
                 }
             }
@@ -703,8 +736,14 @@ class ImageCache  {
     
     func clearDisk(completion: ()-> Void) {
         dispatch_async(self.ioQueue) {
-            self.fileManager.removeItemAtPath(ImageCache.basePath, error: nil)
-            self.fileManager.createDirectoryAtPath(ImageCache.basePath, withIntermediateDirectories: true, attributes: nil, error: nil)
+            do {
+                try self.fileManager.removeItemAtPath(ImageCache.basePath)
+            } catch _ {
+            }
+            do {
+                try self.fileManager.createDirectoryAtPath(ImageCache.basePath, withIntermediateDirectories: true, attributes: nil)
+            } catch _ {
+            }
             dispatch_main_async_safe {
                 completion()
             }
@@ -735,7 +774,7 @@ class ImageCache  {
         dispatch_async(self.ioQueue) {
             let diskCacheURL = NSURL.fileURLWithPath(ImageCache.basePath)
             let resourceKeys = [NSURLIsDirectoryKey, NSURLContentModificationDateKey, NSURLTotalFileAllocatedSizeKey]
-            let fileEnumerator = self.fileManager.enumeratorAtURL(diskCacheURL!, includingPropertiesForKeys: resourceKeys, options: .SkipsHiddenFiles, errorHandler: nil)
+            let fileEnumerator = self.fileManager.enumeratorAtURL(diskCacheURL, includingPropertiesForKeys: resourceKeys, options: .SkipsHiddenFiles, errorHandler: nil)
             let expirationDate = NSDate(timeIntervalSinceNow: ImageCache.defaultCacheMaxAge)
             
             var cacheFiles = [NSURL: AnyObject]()
@@ -744,7 +783,7 @@ class ImageCache  {
             
             for fileURL in fileEnumerator!.allObjects {
                 if let fileURL = fileURL as? NSURL {
-                    if var resourceValues = fileURL.resourceValuesForKeys(resourceKeys, error: nil) {
+                    if var resourceValues = try? fileURL.resourceValuesForKeys(resourceKeys) {
                         let isDir = resourceValues[NSURLIsDirectoryKey] as! Bool
                         if isDir {
                             continue
@@ -763,7 +802,10 @@ class ImageCache  {
             }
             
             for fileUrl in urlsToDelete {
-                self.fileManager.removeItemAtURL(fileUrl, error: nil)
+                do {
+                    try self.fileManager.removeItemAtURL(fileUrl)
+                } catch _ {
+                }
             }
             
             dispatch_main_async_safe(completion)
@@ -771,7 +813,7 @@ class ImageCache  {
     }
     
     private func diskPathForKey(key: String) -> String {
-        return ImageCache.basePath.stringByAppendingPathComponent(self.cacheFileNameForKey(key))
+        return (ImageCache.basePath as NSString).stringByAppendingPathComponent(self.cacheFileNameForKey(key))
     }
     
     private func cacheFileNameForKey(key: String) -> String {

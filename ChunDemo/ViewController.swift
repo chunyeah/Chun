@@ -21,13 +21,13 @@ class ViewController: UIViewController {
             self.tableView = UITableView(frame: CGRectZero, style: .Plain)
             self.tableView.dataSource = self
             self.tableView.delegate = self
-            self.tableView.setTranslatesAutoresizingMaskIntoConstraints(false)
+            self.tableView.translatesAutoresizingMaskIntoConstraints = false
             self.tableView.registerClass(ImageTableViewCell.classForCoder(), forCellReuseIdentifier: "ImageTableViewCell")
             self.view.addSubview(self.tableView)
             
             let views = ["tableView": self.tableView]
-            self.view.addConstraints(NSLayoutConstraint.constraintsWithVisualFormat("V:|-0-[tableView]-0-|", options: NSLayoutFormatOptions(0), metrics: nil, views: views))
-            self.view.addConstraints(NSLayoutConstraint.constraintsWithVisualFormat("|-0-[tableView]-0-|", options: NSLayoutFormatOptions(0), metrics: nil, views: views))
+            self.view.addConstraints(NSLayoutConstraint.constraintsWithVisualFormat("V:|-0-[tableView]-0-|", options: NSLayoutFormatOptions(rawValue: 0), metrics: nil, views: views))
+            self.view.addConstraints(NSLayoutConstraint.constraintsWithVisualFormat("|-0-[tableView]-0-|", options: NSLayoutFormatOptions(rawValue: 0), metrics: nil, views: views))
         }
         
         loadTableView()
