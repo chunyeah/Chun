@@ -129,7 +129,8 @@ public class Chun {
                     if exist {
                         fetchURL = diskURL!
                     }
-                    let fetcher = ImageFetcher.fetchImage(fetchURL, completion: { (result: FetcherResult) -> Void in
+                    
+                    let completionClosure = { (result: FetcherResult) -> Void in
                         switch result {
                         case let .Error(error):
                             let result = Result.Error(error: error)
@@ -139,9 +140,20 @@ public class Chun {
                             complete(result)
                             self.cache.storeImage(image, imageData: imageData, key: key)
                         }
-                        self.fetchers[key] = nil
-                    })
-                    self.fetchers[key] = fetcher
+                        
+                        if self.fetchers[key]?.completions?.count == 0{
+                            self.fetchers[key] = nil
+                        }
+                    }
+                    
+                    let fetcher = ImageFetcher.fetchImage(fetchURL, completion: completionClosure)
+                    
+                    if let fetcherSameKey = self.fetchers[key]{
+                        fetcherSameKey.completions?.append(completionClosure)
+                    }
+                    else{
+                        self.fetchers[key] = fetcher
+                    }
                     })
             }
         }
@@ -452,12 +464,13 @@ class ImageFetcher {
     }
     
     deinit {
-        self.completion = nil
+        self.completions?.removeAll()
+        self.completions = nil
     }
     
     var cancelled = false
     
-    var completion: CompeltionClosure?
+    var completions: [CompeltionClosure?]?
     
     static func fetchImage(url: NSURL, completion: CompeltionClosure?) -> ImageFetcher {
         
@@ -469,7 +482,10 @@ class ImageFetcher {
             fetcher = RemoteImageFetcher(imageURL: url)
         }
         
-        fetcher.completion = completion
+        if fetcher.completions == nil{
+            fetcher.completions = [CompeltionClosure?]()
+        }
+        fetcher.completions?.append(completion)
         
         fetcher.startFetch()
         
@@ -487,9 +503,12 @@ class ImageFetcher {
     final func failedWithError(error: NSError) {
         dispatch_main_async_safe {
             if !self.cancelled {
-                if let completionClosure = self.completion {
+                if var completionClosures = self.completions {
                     let result = FetcherResult.Error(error: error)
-                    completionClosure(result)
+                    for _ in 0..<completionClosures.count{
+                        completionClosures[0]?(result)
+                        completionClosures.removeAtIndex(0)
+                    }
                 }
             }
         }
@@ -506,9 +525,12 @@ class ImageFetcher {
                     finalImage = decodedImageWithImage(finalImage)
                     dispatch_main_async_safe {
                         if !strongSelf.cancelled {
-                            if let completionClosure = strongSelf.completion {
+                            if var completionClosures = strongSelf.completions {
                                 let result = FetcherResult.Success(image: finalImage, imageData: imageData)
-                                completionClosure(result)
+                                for _ in 0..<completionClosures.count{
+                                    completionClosures[0]?(result)
+                                    completionClosures.removeAtIndex(0)
+                                }
                             }
                         }
                     }
